@@ -44,4 +44,5 @@ class SelfBoundSyntax extends ClassBoundSyntax
     {
         parent::__construct($context, $id, $id);
     }
+    
 }
