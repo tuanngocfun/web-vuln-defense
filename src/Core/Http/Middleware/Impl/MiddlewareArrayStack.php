@@ -30,10 +30,17 @@ use App\Utils\Reflections;
 class MiddlewareArrayStack implements MiddlewareStack
 {
     /**
+     * Danh sách middleware theo thứ tự thực thi.
+     *
      * @var string[]
      */
     private array $middlewares;
 
+    /**
+     * Danh sách middleware được đặt tên.
+     *
+     * @var MultiMap
+     */
     private MultiMap $namedMiddlewares;
 
     private string $errorMiddleware;
@@ -49,6 +56,12 @@ class MiddlewareArrayStack implements MiddlewareStack
         return $this->middlewares;
     }
 
+    /**
+     * Lấy danh sách middleware theo tên.
+     *
+     * @param string $name Tên của middleware.
+     * @return array|false Danh sách middleware hoặc `false` nếu không tồn tại.
+     */
     #[\Override]
     public function getMiddlewaresByName(string $name): array|false {
         if (!$this->namedMiddlewares->contains($name)) {
@@ -57,6 +70,14 @@ class MiddlewareArrayStack implements MiddlewareStack
         return $this->getMiddlewaresByNameImpl($name, []);
     }
 
+    /**
+     * Đệ quy lấy middleware theo tên, kiểm tra vòng lặp trong middleware.
+     *
+     * @param string $name Tên middleware.
+     * @param array $finding Danh sách middleware đang tìm kiếm (để phát hiện vòng lặp).
+     * @return array Danh sách middleware được ánh xạ.
+     * @throws CycleDetectedException Nếu phát hiện vòng lặp middleware.
+     */
     private function getMiddlewaresByNameImpl(string $name, array $finding) {
         $finding[$name] = true;
 
@@ -81,6 +102,13 @@ class MiddlewareArrayStack implements MiddlewareStack
         return $this->errorMiddleware;
     }
 
+    /**
+     * Gán middleware vào tên cụ thể.
+     *
+     * @param string $name Tên middleware.
+     * @param string|array $middleware Middleware cần gán.
+     * @return static Trả về chính đối tượng để hỗ trợ method chaining.
+     */
     #[\Override]
     public function assignName(string $name, string|array $middleware): static {
         $givenMiddlewares = Arrays::asArray($middleware);
@@ -97,6 +125,12 @@ class MiddlewareArrayStack implements MiddlewareStack
         return $this;
     }
 
+    /**
+     * Đăng ký danh sách middleware vào stack.
+     *
+     * @param array $middlewares Danh sách middleware cần đăng ký.
+     * @return static Trả về chính đối tượng để hỗ trợ method chaining.
+     */
     #[\Override]
     public function use(array $middlewares): static {
         foreach ($middlewares as $key => $value) {
@@ -113,12 +147,26 @@ class MiddlewareArrayStack implements MiddlewareStack
         return $this;
     }
 
+    /**
+     * Đặt middleware xử lý lỗi.
+     *
+     * @param string $errorMiddleware Middleware xử lý lỗi.
+     * @return static Trả về chính đối tượng để hỗ trợ method chaining.
+     */
+
     #[\Override]
     public function useError(string $errorMiddleware): static {
         $this->errorMiddleware = Reflections::ensureValidImplementation($errorMiddleware, ErrorMiddleware::class);
         return $this;
     }
 
+    /**
+     * Thêm middleware vào cuối stack.
+     *
+     * @param string $middleware Middleware cần thêm.
+     * @param ?string $name (Tùy chọn) Tên middleware.
+     * @return static Trả về chính đối tượng để hỗ trợ method chaining.
+     */
     #[\Override]
     public function append(string $middleware, ?string $name = null): static {
         $this->middlewares[] = Reflections::ensureValidImplementation($middleware, Middleware::class);
@@ -128,6 +176,13 @@ class MiddlewareArrayStack implements MiddlewareStack
         return $this;
     }
     
+    /**
+     * Thêm middleware vào đầu stack.
+     *
+     * @param string $middleware Middleware cần thêm.
+     * @param ?string $name (Tùy chọn) Tên middleware.
+     * @return static Trả về chính đối tượng để hỗ trợ method chaining.
+     */
     #[\Override]
     public function prepend(string $middleware, ?string $name = null): static {
         array_unshift($this->middlewares, Reflections::ensureValidImplementation($middleware, Middleware::class));
