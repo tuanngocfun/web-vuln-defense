@@ -30,6 +30,8 @@ use App\Utils\Reflections;
 trait HasMiddlewares
 {
     /**
+     * Danh sách middleware được gán cho đối tượng.
+     *
      * @var ?string[]
      */
     protected ?array $middlewares = null;
