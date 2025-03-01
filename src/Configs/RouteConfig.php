@@ -165,12 +165,36 @@ class RouteConfig
         ];
     }
 
-    private static function registerTestingRoutes(RouteBuilder $route) {
-        $route->prefix('/testdb')->group([
+    // Define constants to avoid duplicating SQL literals
+    private const SQL_DROP_TEST_TABLE = "DROP TABLE IF EXISTS test";
+    private const SQL_CREATE_TEST_TABLE = "CREATE TABLE test(id INT PRIMARY KEY)";
+    private const TESTDB_PREFIX = '/testdb';
+
+    /**
+     * Registers all testing routes.
+     *
+     * @param RouteBuilder $route
+     * @return void
+     */
+    private static function registerTestingRoutes(RouteBuilder $route): void
+    {
+        self::registerTestDbRoutes($route);
+        self::registerTransactionRoutes($route);
+        self::registerFileRoutes($route);
+        self::registerFileGroupRoutes($route);
+        self::registerImageRoutes($route);
+    }
+
+    /**
+     * Registers test database endpoints under /testdb/sp.
+     */
+    private static function registerTestDbRoutes(RouteBuilder $route): void
+    {
+        $route->prefix(self::TESTDB_PREFIX)->group([
             $route->prefix('/sp')->group([
                 $route->get('/in', function (\App\Core\Dal\DatabaseHandler $db) {
-                    $db->execute("DROP TABLE IF EXISTS test");
-                    $db->execute("CREATE TABLE test(id INT PRIMARY KEY)");
+                    $db->execute(self::SQL_DROP_TEST_TABLE);
+                    $db->execute(self::SQL_CREATE_TEST_TABLE);
 
                     $ids = [1, 2, 3, 4];
                     $db->execute("INSERT INTO test(id) VALUES (?), (?), (?), (?)", ...$ids);
@@ -180,15 +204,14 @@ class RouteConfig
                                 BEGIN
                                     SELECT id FROM test;
                                     SELECT id + step FROM test;
-                                END;
-                                ');
+                                END;');
                     
                     $result = $db->callProcedure('t', 10);
                     return response()->json($result);
                 }),
                 $route->get('/in-gen', function (\App\Core\Dal\DatabaseHandler $db) {
-                    $db->execute("DROP TABLE IF EXISTS test");
-                    $db->execute("CREATE TABLE test(id INT PRIMARY KEY)");
+                    $db->execute(self::SQL_DROP_TEST_TABLE);
+                    $db->execute(self::SQL_CREATE_TEST_TABLE);
 
                     $ids = [1, 2, 3];
                     $db->execute("INSERT INTO test(id) VALUES (?), (?), (?)", ...$ids);
@@ -198,8 +221,7 @@ class RouteConfig
                                 BEGIN
                                     SELECT id FROM test;
                                     SELECT id + step FROM test;
-                                END;
-                                ');
+                                END;');
                     
                     $result = [];
                     $gen = $db->callProcedureRow('p', 10);
@@ -213,8 +235,8 @@ class RouteConfig
                     return response()->json($result);
                 }),
                 $route->get('/out', function (\App\Core\Dal\DatabaseHandler $db) {
-                    $db->execute("DROP TABLE IF EXISTS test");
-                    $db->execute("CREATE TABLE test(id INT PRIMARY KEY)");
+                    $db->execute(self::SQL_DROP_TEST_TABLE);
+                    $db->execute(self::SQL_CREATE_TEST_TABLE);
 
                     $ids = [[1], [2], [3]];
                     $db->queryMany("INSERT INTO test(id) VALUES (?)", ...$ids);
@@ -223,8 +245,7 @@ class RouteConfig
                     $db->query('CREATE PROCEDURE p(OUT msg VARCHAR(50))
                                     BEGIN
                                         SELECT "Hi!" INTO msg;
-                                    END;'
-                                );
+                                    END;');
                     
                     $db->execute('SET @foo = "ABC"');
                     $db->execute('CALL p(@foo)');
@@ -232,80 +253,99 @@ class RouteConfig
                     return response()->json($rows);
                 }),
             ]),
-            $route->prefix('/transaction')->group([
-                $route->get('/insert', function (\App\Core\Dal\DatabaseHandler $db) {
-                    $db->execute("DROP TABLE IF EXISTS test_transaction");
-                    $db->execute("CREATE TABLE test_transaction(id INT PRIMARY KEY)");
-
-                    $db->beginTransaction();
-                    try {
-                        $db->execute('INSERT INTO test_transaction(id) VALUES (?)', 1);
-                        if (!$db->execute('INSERT INTO test_transaction(id) VALUES (?)', 'abc')) {
-                            throw new \App\Http\Exceptions\InternalServerErrorException();
-                        }
-                        $db->commit();
-                    }
-                    catch (\Exception $e) {
-                        $db->rollback();
-                    }
-
-                    $result = $db->query('SELECT * FROM test_transaction');
-                    return response()->json($result);
-                }),
-            ]),
-            $route->prefix('/file')->group([
-                $route->get('/init', function (\App\Core\Dal\DatabaseHandler $db) {
-                    $db->execute("DROP TABLE IF EXISTS test_file");
-                    $db->execute(
-                        "CREATE TABLE test_file(
-                            id INT AUTO_INCREMENT PRIMARY KEY,
-                            filename NVARCHAR(4096),
-                            data LONGBLOB
-                        )"
-                    );
-                    return response()->make('Success');
-                }),
-                $route->post('/upload', function (Request $request, \App\Core\Dal\DatabaseHandler $db) {
-                    $file = $request->file('my-file');
-                    if (!$file) {
-                        return response()->make('Missing "my-file" file')->statusCode(HttpCode::BAD_REQUEST);
-                    }
-
-                    $filename = $file->getClientOriginalName();
-                    $data = $file->getContent();
-                    $success = $db->execute(
-                        'INSERT INTO test_file(filename, data) VALUES (?, ?)',
-                        $filename, $data
-                    );
-
-                    return $success ? response()->make('Success') : response()->err(HttpCode::CONFLICT, 'Failed');
-                }),
-                $route->get('/download/{id}', function (\App\Core\Dal\DatabaseHandler $db, int $id) {
-                    $rows = $db->query('SELECT filename, data FROM test_file WHERE id = (?)', $id);
-                    if (empty($rows)) {
-                        return response()->err(HttpCode::NOT_FOUND, 'File Not Found');
-                    }
-                    $filename = $rows[0]['filename'];
-                    $data = $rows[0]['data'];
-
-                    return response()->downloadContent($data, $filename);
-                })->whereNumber('id'),
-                $route->get('/display/{id}', function (\App\Core\Dal\DatabaseHandler $db, int $id) {
-                    $rows = $db->query('SELECT data FROM test_file WHERE id = (?)', $id);
-                    if (empty($rows)) {
-                        return response()->err(HttpCode::NOT_FOUND, 'File Not Found');
-                    }
-                    $data = $rows[0]['data'];
-
-                    return response()->fileContent($data);
-                })->whereNumber('id'),
-            ])
         ]);
+    }
 
+    /**
+     * Registers transaction-related routes under /testdb/transaction.
+     */
+    private static function registerTransactionRoutes(RouteBuilder $route): void
+    {
+        $route->prefix(self::TESTDB_PREFIX)->prefix('/transaction')->group([
+            $route->get('/insert', function (\App\Core\Dal\DatabaseHandler $db) {
+                $db->execute("DROP TABLE IF EXISTS test_transaction");
+                $db->execute("CREATE TABLE test_transaction(id INT PRIMARY KEY)");
+
+                $db->beginTransaction();
+                try {
+                    $db->execute('INSERT INTO test_transaction(id) VALUES (?)', 1);
+                    if (!$db->execute('INSERT INTO test_transaction(id) VALUES (?)', 'abc')) {
+                        throw new \App\Http\Exceptions\InternalServerErrorException();
+                    }
+                    $db->commit();
+                } catch (\Exception $e) {
+                    $db->rollback();
+                }
+
+                $result = $db->query('SELECT * FROM test_transaction');
+                return response()->json($result);
+            }),
+        ]);
+    }
+
+    /**
+     * Registers file-related routes under /testdb/file.
+     */
+    private static function registerFileRoutes(RouteBuilder $route): void
+    {
+        $route->prefix('/testdb')->prefix('/file')->group([
+            $route->get('/init', function (\App\Core\Dal\DatabaseHandler $db) {
+                $db->execute("DROP TABLE IF EXISTS test_file");
+                $db->execute(
+                    "CREATE TABLE test_file(
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        filename NVARCHAR(4096),
+                        data LONGBLOB
+                    )"
+                );
+                return response()->make('Success');
+            }),
+            $route->post('/upload', function (\App\Core\Http\Request\Request $request, \App\Core\Dal\DatabaseHandler $db) {
+                $file = $request->file('my-file');
+                if (!$file) {
+                    return response()->make('Missing "my-file" file')->statusCode(HttpCode::BAD_REQUEST);
+                }
+
+                $filename = $file->getClientOriginalName();
+                $data = $file->getContent();
+                $success = $db->execute(
+                    'INSERT INTO test_file(filename, data) VALUES (?, ?)',
+                    $filename, $data
+                );
+
+                return $success ? response()->make('Success') : response()->err(HttpCode::CONFLICT, 'Failed');
+            }),
+            $route->get('/download/{id}', function (\App\Core\Dal\DatabaseHandler $db, int $id) {
+                $rows = $db->query('SELECT filename, data FROM test_file WHERE id = (?)', $id);
+                if (empty($rows)) {
+                    return response()->err(HttpCode::NOT_FOUND, 'File Not Found');
+                }
+                $filename = $rows[0]['filename'];
+                $data = $rows[0]['data'];
+
+                return response()->downloadContent($data, $filename);
+            })->whereNumber('id'),
+            $route->get('/display/{id}', function (\App\Core\Dal\DatabaseHandler $db, int $id) {
+                $rows = $db->query('SELECT data FROM test_file WHERE id = (?)', $id);
+                if (empty($rows)) {
+                    return response()->err(HttpCode::NOT_FOUND, 'File Not Found');
+                }
+                $data = $rows[0]['data'];
+
+                return response()->fileContent($data);
+            })->whereNumber('id'),
+        ]);
+    }
+
+    /**
+     * Registers file group routes under /file.
+     */
+    private static function registerFileGroupRoutes(RouteBuilder $route): void
+    {
         $route->prefix('file')->group([
             $route->get('download', fn() => response()->download(static::$filename)),
             $route->get('display', fn() => response()->file(static::$filename)),
-            $route->post('up-save-download', function (Request $request) {
+            $route->post('up-save-download', function (\App\Core\Http\Request\Request $request) {
                 $file = $request->file('my-file');
                 if (!$file || !$file->isValid()) {
                     return response()->make('Missing or invalid file')->statusCode(HttpCode::BAD_REQUEST);
@@ -318,7 +358,7 @@ class RouteConfig
 
                 return response()->download($storedFilename);
             }),
-            $route->post('up-save-display', function (Request $request) {
+            $route->post('up-save-display', function (\App\Core\Http\Request\Request $request) {
                 $file = $request->file('my-file');
                 if (!$file || !$file->isValid()) {
                     return response()->make('Missing or invalid file')->statusCode(HttpCode::BAD_REQUEST);
@@ -332,7 +372,13 @@ class RouteConfig
                 return response()->file($storedFilename);
             }),
         ]);
+    }
 
+    /**
+     * Registers image-related routes under /image.
+     */
+    private static function registerImageRoutes(RouteBuilder $route): void
+    {
         $route->prefix('image')->group([
             $route->get('download', fn() => response()->download(static::$imageName)),
             $route->get('display', fn() => response()->file(static::$imageName)),
