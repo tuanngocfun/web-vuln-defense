@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CSRF Exploit Testing Menu</title>
+    <style>
+      body {
+        font-family: "Poppins", Arial, sans-serif;
+        text-align: center;
+        margin: 20px;
+        background-color: #f7f7f7;
+      }
+      h1 {
+        color: #333;
+        font-family: "Francois One", sans-serif;
+      }
+      .menu {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        text-align: left;
+      }
+      li {
+        margin: 15px 0;
+        padding: 10px;
+        border-radius: 4px;
+        background-color: #f2f2f2;
+      }
+      a {
+        text-decoration: none;
+        color: #0066cc;
+        font-size: 18px;
+        display: block;
+        padding: 5px;
+      }
+      .description {
+        font-size: 14px;
+        color: #666;
+        margin-top: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>CSRF Exploit Testing Menu</h1>
+
+    <div class="menu">
+      <ul>
+        <li>
+          <a href="fetch_csrf_manual/index.html">Manual Fetch-Based CSRF</a>
+          <div class="description">
+            Sends a POST request with credentials via a button click
+          </div>
+          <div class="cvss">CVSS: 7.3 - Exploitability: High</div>
+        </li>
+        <li>
+          <a href="fetch_csrf_auto/index.html">Automatic Fetch-Based CSRF</a>
+          <div class="description">
+            Automatically sends a POST request with credentials on page load
+          </div>
+        </li>
+        <li>
+          <a href="hidden_form_csrf/index.html">Hidden Form CSRF</a>
+          <div class="description">
+            Automatically submits a hidden form on page load
+          </div>
+        </li>
+        <li>
+          <a href="clickjacking_csrf/index.html">Clickjacking CSRF</a>
+          <div class="description">
+            Uses transparent overlay to trick users into clicking
+          </div>
+        </li>
+        <li>
+          <a href="get_csrf/index.html">GET-Based CSRF via Image Tag</a>
+          <div class="description">Uses an image tag to send a GET request</div>
+        </li>
+        <li>
+          <a href="logout_csrf/index.html">Forced Logout CSRF</a>
+          <div class="description">Automatically logs a user out</div>
+        </li>
+        <li>
+          <a href="email_csrf/index.html">Email Auto-Submission CSRF</a>
+          <div class="description">
+            Simulates an HTML email that submits a form
+          </div>
+        </li>
+      </ul>
+    </div>
+  </body>
+</html>
