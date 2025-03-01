@@ -5,9 +5,11 @@ use App\Constants\HttpCode;
 use App\Core\Http\Request\Request;
 use App\Core\Routing\Contracts\RouteBuilder;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MemeController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\ViewController;
 
 class RouteConfig
 {
@@ -121,6 +123,9 @@ class RouteConfig
             ]);
         
         $route->get('/json', fn() => response()->json(['firstname' => 'John', 'lastname' => 'Doe']));
+
+        $route->get('/dashboard', [DashboardController::class, 'show']);
+        $route->get('/view', [ViewController::class, 'show']);
 
         $route
             ->controller(AuthController::class)
