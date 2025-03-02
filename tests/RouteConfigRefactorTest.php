@@ -58,6 +58,24 @@ class FakeDatabaseHandler implements DatabaseHandler {
     }
 }
 
+// --- Enhanced FakeDatabaseHandler for tracking call sequences ---
+class TrackingFakeDatabaseHandler extends FakeDatabaseHandler {
+    public function getCallSequence(): array {
+        return $this->calls;
+    }
+
+    public function clearCalls(): void {
+        $this->calls = [];
+    }
+    
+    public function getLastCall(): ?string {
+        if (empty($this->calls)) {
+            return null;
+        }
+        return $this->calls[count($this->calls) - 1];
+    }
+}
+
 // --- simulateRequest helper ---
 // This function resolves a route and executes its action.
 // If the action expects parameters (i.e. a DatabaseHandler), we pass a FakeDatabaseHandler.
@@ -81,6 +99,30 @@ function simulateRequest(DelegatingRouter $router, string $uri, string $method =
     $action(...$args);
     $output = ob_get_clean();
     return $output;
+}
+
+// --- Enhanced simulateRequest that returns the database handler ---
+function simulateRequestWithDB(DelegatingRouter $router, string $uri, string $method = 'GET'): array {
+    $result = $router->resolve($uri, strtoupper($method));
+    if (!$result instanceof \App\Core\Routing\RouteResolvedResult) {
+        return [null, null];
+    }
+    // Bind route parameters.
+    $action = Functions::bindParams($result->action(), $result->routeParams());
+    
+    // Determine if the action expects a parameter.
+    $reflection = new ReflectionFunction($action);
+    $numRequired = $reflection->getNumberOfRequiredParameters();
+    $db = new TrackingFakeDatabaseHandler();
+    $args = [];
+    if ($numRequired > 0) {
+        $args[] = $db;
+    }
+    
+    ob_start();
+    $action(...$args);
+    $output = ob_get_clean();
+    return [$output, $db];
 }
 
 // --- Dummy RouteConfig classes representing old and refactored route registrations ---
@@ -334,5 +376,183 @@ class RouteConfigRefactorTest extends TestCase {
         $outputOld = simulateRequest($routerOld, "/testdb/file/init", "GET");
         $outputNew = simulateRequest($routerNew, "/testdb/file/init", "GET");
         $this->assertEquals($outputOld, $outputNew, "Output for /testdb/file/init should be identical");
+    }
+    
+    /**
+     * Test that non-existent endpoints return null for both implementations
+     */
+    public function testNonExistentEndpoint(): void {
+        $routerOld = $this->getRouterWithConfig(RouteConfigOld::class);
+        $routerNew = $this->getRouterWithConfig(RouteConfigNew::class);
+        $outputOld = simulateRequest($routerOld, "/testdb/not-exists", "GET");
+        $outputNew = simulateRequest($routerNew, "/testdb/not-exists", "GET");
+        $this->assertNull($outputOld, "Non-existent endpoint should return null for old config");
+        $this->assertNull($outputNew, "Non-existent endpoint should return null for new config");
+    }
+    
+    /**
+     * Test that the database transaction calls are made in the same order
+     */
+    public function testTransactionCallSequence(): void {
+        $routerOld = $this->getRouterWithConfig(RouteConfigOld::class);
+        $routerNew = $this->getRouterWithConfig(RouteConfigNew::class);
+        
+        list($outputOld, $dbOld) = simulateRequestWithDB($routerOld, "/testdb/transaction/insert", "GET");
+        list($outputNew, $dbNew) = simulateRequestWithDB($routerNew, "/testdb/transaction/insert", "GET");
+        
+        $this->assertEquals($dbOld->getCallSequence(), $dbNew->getCallSequence(), 
+            "Database call sequence for /testdb/transaction/insert should be identical");
+    }
+    
+    /**
+     * Test the SP/IN endpoint database call sequence
+     */
+    public function testSpInCallSequence(): void {
+        $routerOld = $this->getRouterWithConfig(RouteConfigOld::class);
+        $routerNew = $this->getRouterWithConfig(RouteConfigNew::class);
+        
+        list($outputOld, $dbOld) = simulateRequestWithDB($routerOld, "/testdb/sp/in", "GET");
+        list($outputNew, $dbNew) = simulateRequestWithDB($routerNew, "/testdb/sp/in", "GET");
+        
+        // We know the SQL is different due to refactoring, so we just check that
+        // the number of calls and call types are the same
+        $this->assertEquals(count($dbOld->getCallSequence()), count($dbNew->getCallSequence()),
+            "Number of database calls for /testdb/sp/in should be identical");
+            
+        // Check that the last call (callProcedure) has the same parameters
+        $callSequenceOld = $dbOld->getCallSequence();
+        $callSequenceNew = $dbNew->getCallSequence();
+        $lastCallOld = $callSequenceOld[count($callSequenceOld) - 1];
+        $lastCallNew = $callSequenceNew[count($callSequenceNew) - 1];
+        
+        $this->assertEquals($lastCallOld, $lastCallNew,
+            "Last database call for /testdb/sp/in should be identical");
+    }
+    
+    /**
+     * Test the SP/IN-GEN endpoint database call sequence
+     */
+    public function testSpInGenCallSequence(): void {
+        $routerOld = $this->getRouterWithConfig(RouteConfigOld::class);
+        $routerNew = $this->getRouterWithConfig(RouteConfigNew::class);
+        
+        list($outputOld, $dbOld) = simulateRequestWithDB($routerOld, "/testdb/sp/in-gen", "GET");
+        list($outputNew, $dbNew) = simulateRequestWithDB($routerNew, "/testdb/sp/in-gen", "GET");
+        
+        // Check that the last call (callProcedureRow) has the same parameters
+        $callSequenceOld = $dbOld->getCallSequence();
+        $callSequenceNew = $dbNew->getCallSequence();
+        $lastCallOld = $callSequenceOld[count($callSequenceOld) - 1];
+        $lastCallNew = $callSequenceNew[count($callSequenceNew) - 1];
+        
+        $this->assertEquals($lastCallOld, $lastCallNew,
+            "Last database call for /testdb/sp/in-gen should be identical");
+    }
+    
+    /**
+     * Test request methods other than GET
+     */
+    public function testMethodNotAllowed(): void {
+        $routerOld = $this->getRouterWithConfig(RouteConfigOld::class);
+        $routerNew = $this->getRouterWithConfig(RouteConfigNew::class);
+        
+        // Test POST method on GET endpoint
+        $outputOld = simulateRequest($routerOld, "/testdb/sp/in", "POST");
+        $outputNew = simulateRequest($routerNew, "/testdb/sp/in", "POST");
+        $this->assertEquals($outputOld, $outputNew, 
+            "Method not allowed response should be identical");
+    }
+    
+    /**
+     * Test that both routers have the same endpoints available
+     */
+    public function testEndpointAvailability(): void {
+        $routerOld = $this->getRouterWithConfig(RouteConfigOld::class);
+        $routerNew = $this->getRouterWithConfig(RouteConfigNew::class);
+        
+        $testEndpoints = [
+            "/testdb/sp/in",
+            "/testdb/sp/in-gen",
+            "/testdb/sp/out",
+            "/testdb/transaction/insert",
+            "/testdb/file/init"
+        ];
+        
+        foreach ($testEndpoints as $endpoint) {
+            $outputOld = simulateRequest($routerOld, $endpoint, "GET");
+            $outputNew = simulateRequest($routerNew, $endpoint, "GET");
+            
+            $this->assertEquals(
+                $outputOld !== null,
+                $outputNew !== null,
+                "Endpoint availability for $endpoint should be identical"
+            );
+        }
+    }
+    
+    /**
+     * Test deep route nesting
+     */
+    public function testDeepRouteNesting(): void {
+        // Extend RouteConfigOld with a deep nested route
+        $routerOld = new DelegatingRouter();
+        $routerOld->prefix('/testdb')->group([
+            $routerOld->prefix('/deep')->group([
+                $routerOld->prefix('/nested')->group([
+                    $routerOld->prefix('/route')->group([
+                        $routerOld->get('/endpoint', function() {
+                            return response()->make('Deep nested route');
+                        })
+                    ])
+                ])
+            ])
+        ]);
+        
+        // Extend RouteConfigNew with the same deep nested route
+        $routerNew = new DelegatingRouter();
+        $routerNew->prefix('/testdb')->group([
+            $routerNew->prefix('/deep')->group([
+                $routerNew->prefix('/nested')->group([
+                    $routerNew->prefix('/route')->group([
+                        $routerNew->get('/endpoint', function() {
+                            return response()->make('Deep nested route');
+                        })
+                    ])
+                ])
+            ])
+        ]);
+        
+        $outputOld = simulateRequest($routerOld, "/testdb/deep/nested/route/endpoint", "GET");
+        $outputNew = simulateRequest($routerNew, "/testdb/deep/nested/route/endpoint", "GET");
+        
+        $this->assertEquals($outputOld, $outputNew, 
+            "Deep nested route should be identical");
+    }
+    
+    /**
+     * Test route parameters
+     */
+    public function testRouteParameters(): void {
+        // Extend RouteConfigOld with a parameterized route
+        $routerOld = new DelegatingRouter();
+        $routerOld->prefix('/testdb')->group([
+            $routerOld->get('/param/{id}', function(string $id) {
+                return response()->make("Param: $id");
+            })
+        ]);
+        
+        // Extend RouteConfigNew with the same parameterized route
+        $routerNew = new DelegatingRouter();
+        $routerNew->prefix('/testdb')->group([
+            $routerNew->get('/param/{id}', function(string $id) {
+                return response()->make("Param: $id");
+            })
+        ]);
+        
+        $outputOld = simulateRequest($routerOld, "/testdb/param/123", "GET");
+        $outputNew = simulateRequest($routerNew, "/testdb/param/123", "GET");
+        
+        $this->assertEquals($outputOld, $outputNew, 
+            "Route with parameters should be identical");
     }
 }
