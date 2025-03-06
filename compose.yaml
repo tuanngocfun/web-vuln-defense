@@ -1,0 +1,93 @@
+services:
+  server:
+    build:
+      context: .
+      target: development
+    container_name: php-server
+    ports:
+      - 9000:80
+    depends_on:
+      db:
+        condition: service_healthy
+    secrets:
+      - db-password
+    volumes:
+      - ./.docker/apache/.htaccess:/var/www/html/.htaccess
+      - ./.docker/scripts:/var/www/docker
+      - ./.docker/scripts/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh
+      - ./db:/var/www/db
+      # Add these volume mounts to see your changes in real-time
+      - ./src:/var/www/html
+      - ./public:/var/www/html/public
+      - ./resources:/var/www/html/resources
+      - ./composer.json:/var/www/html/composer.json
+      - ./composer.lock:/var/www/html/composer.lock
+    env_file: ".env"
+    environment:
+      - PASSWORD_FILE_PATH=/run/secrets/db-password
+      - DB_HOST=${DB_HOST}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+    develop:
+      watch:
+        - action: sync
+          path: ./src
+          target: /var/www/html
+        - action: sync
+          path: ./resources
+          target: /var/www/html/resources
+        - action: sync
+          path: ./public
+          target: /var/www/html/public
+  # Rest of the file remains the same
+  db:
+    image: mariadb
+    container_name: db
+    restart: always
+    user: root
+    secrets:
+      - db-password
+    volumes:
+      - ./.docker/db:/docker-entrypoint-initdb.d # Mount SQL files for initialization
+      - db-data:/var/lib/mysql
+    environment:
+      - MARIADB_ROOT_PASSWORD_FILE=/run/secrets/db-password
+      - MARIADB_DATABASE=${DB_NAME}
+    expose:
+      - 3306
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "/usr/local/bin/healthcheck.sh",
+          "--su-mysql",
+          "--connect",
+          "--innodb_initialized",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  phpmyadmin:
+    image: phpmyadmin
+    container_name: phpmyadmin
+    hostname: phpmyadmin
+    ports:
+      - 8888:80
+    depends_on:
+      - db
+    environment:
+      - PMA_HOST=db
+      - UPLOAD_LIMIT=64M
+  redis:
+    image: redis
+    container_name: redis-server
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+volumes:
+  db-data:
+  redis-data:
+secrets:
+  db-password:
+    file: ./secrets/password.txt
