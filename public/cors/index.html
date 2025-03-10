@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>CORS testing</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="./css/reset.css">
+    <link rel="stylesheet" href="./css/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Francois+One&family=Roboto+Slab:wght@100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Poppins">
+    <script defer src="./js/script.js"></script>
+</head>
+
+<body class="page-container">
+    <main class="page-content-wrapper">
+        <div class="flex-pane-container">
+            <div class="left-pane"></div>
+            <div class="middle-pane">
+                <form class="input-form input-form-section">
+                    <fieldset>
+                        <legend>General</legend>
+                        <div class="form-control-container">
+                            <label for="url">
+                                URL<span class="form-control-required-symbol">*</span>:
+                            </label>
+                            <input type="text" id="url" size="40" value="http://localhost:9000/json">
+                            <label for="method">
+                                Method<span class="form-control-required-symbol">*</span>:
+                            </label>
+                            <select id="method" name="method">
+                                <option value="GET">GET</option>
+                                <option value="POST">POST</option>
+                                <option value="PUT">PUT</option>
+                                <option value="PATCH">PATCH</option>
+                                <option value="DELETE">DELETE</option>
+                                <option value="HEAD">HEAD</option>
+                                <option value="OPTIONS">OPTIONS</option>
+                            </select>
+                        </div>
+                    </fieldset>
+                    <fieldset>
+                        <legend>Login</legend>
+                        <div class="form-control-container">
+                            <label for="username">
+                                Username:
+                            </label>
+                            <input type="text" id="username" size="20">
+                            <label for="password">
+                                Password:
+                            </label>
+                            <input type="password" id="password" size="20">
+                        </div>
+                    </fieldset>
+                    <input type="submit" id="fetch" value="Fetch"></input>
+                    <input type="submit" id="fetch-with-body" value="Fetch With Body"></input>
+                </form>
+                <br>
+                <form
+                    id="file-form"
+                    class="input-form" 
+                    action="http://localhost:9000/testdb/file/upload" 
+                    method="post"
+                    enctype="multipart/form-data"
+                    target="_blank"
+                    >
+                    <div class="form-control-container">
+                        <label for="my-file">
+                            Select File:
+                        </label>
+                        <input type="file" name="my-file">
+                    </div>
+                    <input type="submit" id="fetch-file" value="Fetch With File"></input>
+                </form>
+                <hr>
+                <div id="output"></div>
+            </div>
+            <div class="right-pane"></div>
+        </div>
+    </main>
+</body>
+</html>
