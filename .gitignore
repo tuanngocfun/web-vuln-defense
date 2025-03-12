@@ -1,0 +1,4 @@
+**/secrets/*
+!**/secrets/*.example.*
+**/.env
+**/README.Docker.md
