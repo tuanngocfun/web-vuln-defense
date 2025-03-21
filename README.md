@@ -1,6 +1,6 @@
 # Testing server
 
-A mini E-business project - MVC architecture
+Pentesting - A mini E-business project - MVC architecture
 
 # Project setup instructions
 
