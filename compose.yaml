@@ -6,7 +6,7 @@ services:
     container_name: php-server
     ports:
       - 9000:80
-      - 9003:9003 # Expose Xdebug port
+      - 9003:9003 # Xdebug port
     depends_on:
       db:
         condition: service_healthy
@@ -17,13 +17,8 @@ services:
       - ./.docker/scripts:/var/www/docker
       - ./.docker/scripts/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh
       - ./db:/var/www/db
-      # Add these volume mounts to see your changes in real-time
-      - ./src:/var/www/html
-      - ./public:/var/www/html/public
-      - ./resources:/var/www/html/resources
       - ./composer.json:/var/www/html/composer.json
       - ./composer.lock:/var/www/html/composer.lock
-      # Mount Xdebug configuration file
       - ./.docker/php/xdebug.ini:/usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
     env_file: ".env"
     environment:
@@ -47,7 +42,9 @@ services:
         - action: sync
           path: ./public
           target: /var/www/html/public
-  # Rest of the file remains the same
+    tty: true # Enable TTY for interactive reverse shell
+    stdin_open: true # Keep stdin open for interactive processes
+
   db:
     image: mariadb
     container_name: db
@@ -75,6 +72,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
   phpmyadmin:
     image: phpmyadmin
     container_name: phpmyadmin
@@ -86,6 +84,7 @@ services:
     environment:
       - PMA_HOST=db
       - UPLOAD_LIMIT=64M
+
   redis:
     image: redis
     container_name: redis-server
@@ -93,9 +92,11 @@ services:
       - redis-data:/data
     ports:
       - "6379:6379"
+
 volumes:
   db-data:
   redis-data:
+
 secrets:
   db-password:
     file: ./secrets/password.txt
