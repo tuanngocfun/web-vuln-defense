@@ -41,6 +41,24 @@ ls -l /var/www/docker/migration.sh
 chmod +x /var/www/docker/migration.sh
 ```
 
+when you change files in the project to diff location
+
+```
+sudo chown $USER:$USER /path/to/php-reverse-shell.php
+```
+
+for reverse shell work with php
+
+```
+ ngoc  (e) base  …  selected-topics  codes  heuristic-network ip a | grep "inet " | grep -v "127.0.0.1""
+    inet 172.19.129.155/22 brd 172.19.131.255 scope global dynamic noprefixroute wlp0s20f3
+    inet 192.168.122.1/24 brd 192.168.122.255 scope global virbr0
+    inet 100.94.98.113/32 scope global tailscale0
+    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0
+```
+
+get the the ip address inet with global dynamic to assign into the php-reverse-shell.php
+
 _Alternatively, on Windows, you can run the **`migration.cmd`** script._
 
 - After seeing "Successfully seeding database," the setup is complete and the project is ready to go.<br>
