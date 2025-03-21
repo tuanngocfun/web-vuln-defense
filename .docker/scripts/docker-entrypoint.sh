@@ -1,10 +1,11 @@
 #!/bin/bash
 set -e
 
-# Ensure resources/views-cache directory exists with proper permissions
+# Fix permission after volume mount
+echo "Fixing permissions for views-cache..."
 mkdir -p /var/www/html/resources/views-cache
-chown -R www-data:www-data /var/www/html/resources
-chmod -R 775 /var/www/html/resources
+chown -R www-data:www-data /var/www/html/resources/views-cache
+chmod -R 775 /var/www/html/resources/views-cache
 
 # Run migrations and seeding automatically
 if [ -f "/var/www/docker/migration.sh" ]; then
@@ -12,5 +13,5 @@ if [ -f "/var/www/docker/migration.sh" ]; then
   bash /var/www/docker/migration.sh
 fi
 
-# Execute the original command
+# Start Apache
 exec "$@"
